@@ -1,3 +1,18 @@
+# Emacs Editing
+*.*~
+\#*#
+\#*
+.#*
+
+# Unit Testing
+staging/
+
+# debugging
+debug/
+
+# Compiled Object files
+*.pyc
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
