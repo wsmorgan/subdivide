@@ -18,7 +18,7 @@ class Polygon(object):
 
         Args:
             vertices (list of float): The verticies of the polgon listed in 
-              counterclockwise order.
+                counterclockwise order.
            eps (optional float): Floating point accuracy, default 1E-7.
         """
 
@@ -70,6 +70,12 @@ class Polygon(object):
         Returns:
             sub_poly (list): The vertices of the polygon with the desired area.
             remaining_poly (list): The vertices definining the remaining polygon.
+
+        Raises:
+            RuntimeError: if the code finds more than 3 sub-areas which should 
+                be impossible.
+            RuntimeError: if the code cannot reconstruct the remaining polygon 
+                after removing the sub_polygon's vertices.
         """
         from copy import deepcopy
 
@@ -85,10 +91,6 @@ class Polygon(object):
                     divisions = self._create_new_areas(new_segments,segments)
                     test_poly = None
 
-                    print("seg_i",segments[i])
-                    print("seg_j",segments[j])
-                    print("new segs",new_segments)
-                    print("divisions",divisions)
                     if len(divisions) == 1 and self._find_area(divisions[0]) > area:
                         if len(divisions[0]) == 3:
                             test_poly = self._triangle_cut(divisions[0],area,None)
@@ -172,13 +174,35 @@ class Polygon(object):
 
         # Now we need to figure out which vertices form the remaining volume.
         from itertools import combinations
-
         remaining_poly = []
         for vert in temp_verts:
             if vert in sub_poly and vert not in verts:
+                #this is a new vertex that splits the regoins.
                 remaining_poly.append(vert)
             elif vert in verts and vert not in sub_poly:
-                remaining_poly.append(vert)                    
+                # This is a vertex in the original polygon only.
+                remaining_poly.append(vert)
+
+        # Check to make sure we didn't miss any vertices. This will
+        # only happen when the sub_poly and remaining polygon to share
+        # a vertex of the original polygon.
+        test_area = self._find_area(segments=self._find_segments(verts=remaining_poly))
+        if not np.allclose(test_area+area,total_area):
+            area_check = False
+            for vert in sub_poly:
+                if vert not in remaining_poly:
+                    test_case = remaining_poly + [vert]
+                    temp_area = self._find_area(segments=self._find_segments(verts=test_case))
+                    if np.allclose(temp_area+area,total_area):
+                        remaining_poly.append(vert)
+                        area_check = True
+                        break
+
+        else:
+            area_check = True            
+
+        if not area_check:
+            raise RuntimeError("Couldn't find the vertices of the remaining polygon.")
 
         return sub_poly, remaining_poly
 
@@ -200,13 +224,20 @@ class Polygon(object):
         bisector = self._angle_bisection(line1,line2)
         new_points = self._projections(line1,line2,bisector)
 
-        print("new_points",new_points)
         new_segments = []
 
         if len(new_points) == 2 and ((np.allclose(new_points[0][0],new_points[1][1]) and np.allclose(new_points[0][1],new_points[1][0])) or (np.allclose(new_points[0][0],new_points[1][0]) and np.allclose(new_points[0][1],new_points[1][1]))):
             new_points = [new_points[0]]
 
         for point in new_points:
+            option1 = (point[1][0]-point[0][0])*(point[1][1]+point[0][1])
+            if option1 < 0:
+                new_segments.append((point[0],point[1]))
+            else:
+                new_segments.append((point[1],point[0]))
+
+            # if the point isn't an end point then we need to find out
+            # which line it's in to create new subsegments of the line.
             if not (np.allclose(point[0],line1[0]) or np.allclose(point[0],line1[1])) and not (np.allclose(point[0],line2[0]) or np.allclose(point[0],line2[1])):
                 if self._is_between(line1[0],line1[1],point[0]):
                     new_segments.append((line1[0],point[0]))
@@ -214,46 +245,35 @@ class Polygon(object):
                 elif self._is_between(line2[0],line2[1],point[0]):
                     new_segments.append((line2[0],point[0]))
                     new_segments.append((point[0],line2[1]))
-            else:
-                if (np.allclose(point[1], line1[0]) or np.allclose(point[1],line1[1])) and not (np.allclose(point[0],line1[0]) or np.allclose(point[0],line1[1])):
-                    new_segments.append((point[1],point[0]))
-                elif (np.allclose(point[1], line2[0]) or np.allclose(point[1],line2[1])) in line2 and not (np.allclose(point[0],line2[0]) or np.allclose(point[0],line2[1])):
-                    new_segments.append((point[0],point[1]))
 
-        for point in new_points:
-            if (point[0],point[1]) not in new_segments or (point[1],point[0]) not in new_segments:
-                option1 = (point[1][0]-point[0][0])*(point[1][1]+point[0][1])
-                if option1 < 0:
-                    new_segments.append((point[0],point[1]))
-                else:
-                    new_segments.append((point[1],point[0]))
-                    
         return new_segments, bisector, new_points
     
-    @staticmethod
-    def _create_new_areas(new_segments,old_segments):
+    def _create_new_areas(self,new_segments,old_segments):
         """Uses the newly created segments to diffine subvolumes of the polygon.
 
         Args:
             new_segments (list): The list of segments created by 
-              self._create_new_segments.
+                self._create_new_segments.
             old_segments (list): A list containing the other segments 
-              needed to form the polygon.
+                needed to form the polygon.
 
         Returns:
             new_areas (list): A list of lists of segments where each list defines a 
-              new polgon of smaller area.
+                new polgon of smaller area.
         """
 
-        all_segments = new_segments+old_segments
-
+        from itertools import permutations
+        
         new_segments_local = []
         for seg in new_segments:
-            new_segments_local.append(seg)
-            new_segments_local.append(seg[::-1])
+            if seg not in new_segments_local:
+                new_segments_local.append(seg)
+            if seg[::-1] not in new_segments_local:
+                new_segments_local.append(seg[::-1])
+                
+        all_segments = new_segments_local+old_segments
 
         new_areas = []
-
         for seg in new_segments_local:
             new_path =[seg]
             cur_seg = seg
@@ -287,8 +307,7 @@ class Polygon(object):
                         cur_seg = test_seg
                         if np.allclose(cur_seg[1],seg[0]):
                             break
-                
-            if not new_path in new_areas and len(new_path) > 2:
+            if not new_path in new_areas and len(new_path) > 2 and len(new_path) <= len(self._segments) and self._find_permimter(segments=new_path) <= self.perimiter:
                 new_areas.append(new_path)
 
         return new_areas
@@ -300,7 +319,7 @@ class Polygon(object):
             segments (list): The line segments that form the triangel.
             total_area (float): The area desired after the cut.
             rest_of_poly (list): The line segments containing the rest of the
-              polygon whose area will contribute.
+                polygon whose area will contribute.
 
         Returns:
             poly (list): The vertices that form the polygon with the desired area.
@@ -314,28 +333,24 @@ class Polygon(object):
         else:
             target = total_area - self._find_area(rest_of_poly)
 
-        at = segments[0][0]
-        bt = segments[1][0]
-        ct = segments[2][0]
-
         a = None
         for point in self._new_points:
-            if at == point[1]:
-                a = at
-                b = bt
-                c = ct
-            elif bt == point[1]:
-                a = bt
-                b = ct
-                c = at
-            elif ct == point[1]:
-                a = ct
-                b = at
-                c = bt
+            if segments[0] in self._segments:
+                a = segments[0][0]
+                b = segments[1][1]
+                c = segments[0][1]
+            elif segments[1] in self._segments:
+                a = segments[1][0]
+                b = segments[2][1]
+                c = segments[1][1]
+            elif segments[2] in self._segments:
+                a = segments[2][0]
+                b = segments[0][1]
+                c = segments[2][1]
 
             if a is not None:
                 break
-
+            
         cut_point = list(np.array(c) + target/self._find_area(segments=segments)*(np.array(b)-np.array(c)))
 
         if rest_of_poly is None:
@@ -368,7 +383,7 @@ class Polygon(object):
             total_area (float): The area desired after the cut.
             bisector (list): The endpoints of the bisector.
             rest_of_poly (list): The line segments containing the rest of the
-              polygon whose area will contribute.
+                polygon whose area will contribute.
 
         Returns:
             poly (list): The vertices that form the polygon with the desired area.
@@ -537,7 +552,7 @@ class Polygon(object):
         """
         
         xdiff = (line1[0][0] - line1[1][0], line2[0][0] - line2[1][0])
-        ydiff = (line1[0][1] - line1[1][1], line2[0][1] - line2[1][1]) #Typo was here
+        ydiff = (line1[0][1] - line1[1][1], line2[0][1] - line2[1][1]) 
 
         def det(a, b):
             return a[0] * b[1] - a[1] * b[0]
@@ -583,6 +598,10 @@ class Polygon(object):
 
                 if not np.allclose(proj+bisection[0],lines[i][j]):
                     test_proj = self._line_intersection(lines[tt],[lines[i][j],list(proj+bisection[0])])
+                    for vert in self.vertices:
+                        if np.allclose(test_proj,vert):
+                            test_proj = vert
+                            break
                     if np.allclose(0,test_proj[0]):
                         test_proj[0] = 0
                     if np.allclose(0,test_proj[1]):
@@ -660,7 +679,7 @@ class Polygon(object):
 
         Args:
             segments (list optional): A list of the line segments for the area. If None then 
-              self._segments is used.
+                self._segments is used.
         
         Returns:
             area (float): The area of the polygon.
@@ -677,7 +696,7 @@ class Polygon(object):
         
         Args:
             verts (list, optional): A list of vertices, if none are supplied then the 
-              self.vertices is used.
+                self.vertices is used.
 
         Returns:
             segments (list): The paired segments of the vertices.
@@ -692,7 +711,7 @@ class Polygon(object):
 
         Args:
             segments (list optional): A list of the line segments for the area. If None then 
-              self._segments is used.
+                self._segments is used.
 
         Returns:
             perimiter (float): The perimiter.

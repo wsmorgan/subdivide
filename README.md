@@ -5,6 +5,9 @@
 Code for subdividing polygons and polyhedra into the desired number of
 equal area or volume sections
 
+Full API Documentation available at: [github pages](https://wsmorgan.github.io/subdivide/).
+
+
 ## Installing the code
 
 To intall the code clone this repository and execute the following
