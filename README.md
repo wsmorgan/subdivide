@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/wsmorgan/subdivide.svg?branch=master)](https://travis-ci.org/wsmorgan/subdivide)[![codecov](https://codecov.io/gh/wsmorgan/subdivide/branch/master/graph/badge.svg)](https://codecov.io/gh/wsmorgan/subdivide)[![Code Issues](https://www.quantifiedcode.com/api/v1/project/7f68b7021a174e4da28e14e8b4b31379/badge.svg)](https://www.quantifiedcode.com/app/project/7f68b7021a174e4da28e14e8b4b31379)
+
 # subdivide
 
 Code for subdividing polygons and polyhedra into the desired number of

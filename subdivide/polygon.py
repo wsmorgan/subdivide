@@ -89,12 +89,11 @@ class Polygon(object):
                     print("seg_j",segments[j])
                     print("new segs",new_segments)
                     print("divisions",divisions)
-                    if len(divisions) == 1:
-                        if self._find_area(divisions[0]) > area:
-                            if len(divisions[0]) == 3:
-                                test_poly = self._triangle_cut(divisions[0],area,None)
-                            elif len(divisions[0]) == 4:
-                                test_poly = self._trapezoid_cut(divisions[0],area,bisector,None)
+                    if len(divisions) == 1 and self._find_area(divisions[0]) > area:
+                        if len(divisions[0]) == 3:
+                            test_poly = self._triangle_cut(divisions[0],area,None)
+                        elif len(divisions[0]) == 4:
+                            test_poly = self._trapezoid_cut(divisions[0],area,bisector,None)
                     elif len(divisions) == 2:
                         if self._find_area(divisions[0]) > area:
                             if len(divisions[0]) == 3:
@@ -136,10 +135,9 @@ class Polygon(object):
                                 sub_poly = test_poly
                                 sub_poly_per = self._find_permimter(segments=test_segs)
                         else:
-                            if abs(self._find_area(segments=test_segs) - area) < self._eps:
-                                if self._find_permimter(segments=test_segs) < sub_poly_per:
-                                    sub_poly = test_poly
-                                    sub_poly_per = self._find_permimter(segments=test_segs)
+                            if abs(self._find_area(segments=test_segs) - area) < self._eps and self._find_permimter(segments=test_segs) < sub_poly_per:
+                                sub_poly = test_poly
+                                sub_poly_per = self._find_permimter(segments=test_segs)
 
         # Add the vertices for the newly found polygon to the list so
         # that we can determine what the remaining larger polygon looks like.
@@ -222,9 +220,18 @@ class Polygon(object):
                 elif (np.allclose(point[1], line2[0]) or np.allclose(point[1],line2[1])) in line2 and not (np.allclose(point[0],line2[0]) or np.allclose(point[0],line2[1])):
                     new_segments.append((point[0],point[1]))
 
+        for point in new_points:
+            if (point[0],point[1]) not in new_segments or (point[1],point[0]) not in new_segments:
+                option1 = (point[1][0]-point[0][0])*(point[1][1]+point[0][1])
+                if option1 < 0:
+                    new_segments.append((point[0],point[1]))
+                else:
+                    new_segments.append((point[1],point[0]))
+                    
         return new_segments, bisector, new_points
-
-    def _create_new_areas(self,new_segments,old_segments):
+    
+    @staticmethod
+    def _create_new_areas(new_segments,old_segments):
         """Uses the newly created segments to diffine subvolumes of the polygon.
 
         Args:
@@ -251,38 +258,35 @@ class Polygon(object):
             new_path =[seg]
             cur_seg = seg
             for test_seg in all_segments:
-                if not (np.allclose(test_seg[0],cur_seg[0]) and np.allclose(test_seg[1],cur_seg[1])):
-                    if not (np.allclose(test_seg[0],cur_seg[1]) and np.allclose(test_seg[1],cur_seg[0])):
-                        if np.allclose(test_seg[0],cur_seg[1]):
-                            if not test_seg[0]==cur_seg[1]:
-                                cur_seg = list(cur_seg)
-                                cur_seg = cur_seg[:-1]
-                                cur_seg.append(test_seg[0])
-                                list(cur_seg)[1] = test_seg[0]
-                                new_path = new_path[:-1]
-                                new_path.append(tuple(cur_seg))
+                if not (np.allclose(test_seg[0],cur_seg[0]) and np.allclose(test_seg[1],cur_seg[1])) and not (np.allclose(test_seg[0],cur_seg[1]) and np.allclose(test_seg[1],cur_seg[0])) and np.allclose(test_seg[0],cur_seg[1]):
+                    if not test_seg[0]==cur_seg[1]:
+                        cur_seg = list(cur_seg)
+                        cur_seg = cur_seg[:-1]
+                        cur_seg.append(test_seg[0])
+                        list(cur_seg)[1] = test_seg[0]
+                        new_path = new_path[:-1]
+                        new_path.append(tuple(cur_seg))
 
-                            new_path.append(test_seg)
-                            cur_seg = test_seg
-                            if np.allclose(cur_seg[1],seg[0]):
-                                break
+                    new_path.append(test_seg)
+                    cur_seg = test_seg
+                    if np.allclose(cur_seg[1],seg[0]):
+                        break
+                        
             if not np.allclose(cur_seg[1],seg[0]):
                 for test_seg in all_segments:
-                    if not (np.allclose(test_seg[0],cur_seg[0]) and np.allclose(test_seg[1],cur_seg[1])):
-                        if not (np.allclose(test_seg[0],cur_seg[1]) and np.allclose(test_seg[1],cur_seg[0])):
-                            if np.allclose(test_seg[0],cur_seg[1]):
-                                if not test_seg[0]==cur_seg[1]:
-                                    cur_seg = list(cur_seg)
-                                    cur_seg = cur_seg[:-1]
-                                    cur_seg.append(test_seg[0])
-                                    list(cur_seg)[1] = test_seg[0]
-                                    new_path = new_path[:-1]
-                                    new_path.append(tuple(cur_seg))
+                    if not (np.allclose(test_seg[0],cur_seg[0]) and np.allclose(test_seg[1],cur_seg[1])) and not (np.allclose(test_seg[0],cur_seg[1]) and np.allclose(test_seg[1],cur_seg[0])) and np.allclose(test_seg[0],cur_seg[1]):
+                        if not test_seg[0]==cur_seg[1]:
+                            cur_seg = list(cur_seg)
+                            cur_seg = cur_seg[:-1]
+                            cur_seg.append(test_seg[0])
+                            list(cur_seg)[1] = test_seg[0]
+                            new_path = new_path[:-1]
+                            new_path.append(tuple(cur_seg))
 
-                                new_path.append(test_seg)
-                                cur_seg = test_seg
-                                if np.allclose(cur_seg[1],seg[0]):
-                                    break
+                        new_path.append(test_seg)
+                        cur_seg = test_seg
+                        if np.allclose(cur_seg[1],seg[0]):
+                            break
                 
             if not new_path in new_areas and len(new_path) > 2:
                 new_areas.append(new_path)
@@ -310,43 +314,43 @@ class Polygon(object):
         else:
             target = total_area - self._find_area(rest_of_poly)
 
-        At = segments[0][0]
-        Bt = segments[1][0]
-        Ct = segments[2][0]
+        at = segments[0][0]
+        bt = segments[1][0]
+        ct = segments[2][0]
 
-        A = None
+        a = None
         for point in self._new_points:
-            if At == point[1]:
-                A = At
-                B = Bt
-                C = Ct
-            elif Bt == point[1]:
-                A = Bt
-                B = Ct
-                C = At
-            elif Ct == point[1]:
-                A = Ct
-                B = At
-                C = Bt
+            if at == point[1]:
+                a = at
+                b = bt
+                c = ct
+            elif bt == point[1]:
+                a = bt
+                b = ct
+                c = at
+            elif ct == point[1]:
+                a = ct
+                b = at
+                c = bt
 
-            if A is not None:
+            if a is not None:
                 break
 
-        cut_point = list(np.array(C) + target/self._find_area(segments=segments)*(np.array(B)-np.array(C)))
+        cut_point = list(np.array(c) + target/self._find_area(segments=segments)*(np.array(b)-np.array(c)))
 
         if rest_of_poly is None:
-            poly = [A,cut_point,C]
+            poly = [a,cut_point,c]
         else:
             poly = []
             for seg in rest_of_poly:
-                if seg[0] == A:
-                    poly.append(A)
+                if seg[0] == a:
+                    poly.append(a)
                     poly.append(cut_point)
-                    poly.append(C)
-                elif seg[0] == C:
-                    poly.append(C)
-                    poly.append(B)
-                    poly.append(A)
+                    poly.append(c)
+                elif seg[0] == c:
+                    poly.append(c)
+                    poly.append(b)
+                    poly.append(a)
                 else:
                     poly.append(seg[0])
                     
@@ -377,45 +381,45 @@ class Polygon(object):
         else:
             target = total_area - self._find_area(rest_of_poly)
 
-        At = segments[0][0]
-        Bt = segments[1][0]
-        Ct = segments[2][0]
-        Dt = segments[3][0]
+        at = segments[0][0]
+        bt = segments[1][0]
+        ct = segments[2][0]
+        dt = segments[3][0]
 
-        A = None
+        a = None
         for point in self._new_points:
-            if At == point[1]:
-                A = At
-                B = Bt
-                C = Ct
-                D = Dt
-            elif Bt == point[1]:
-                A = Bt
-                B = Ct
-                C = Dt
-                D = At
-            elif Ct == point[1]:
-                A = Ct
-                B = Dt
-                C = At
-                D = Bt
-            elif Dt == point[1]:
-                A = Dt
-                B = At
-                C = Bt
-                D = Ct
+            if at == point[1]:
+                a = at
+                b = bt
+                c = ct
+                d = dt
+            elif bt == point[1]:
+                a = bt
+                b = ct
+                c = dt
+                d = at
+            elif ct == point[1]:
+                a = ct
+                b = dt
+                c = at
+                d = bt
+            elif dt == point[1]:
+                a = dt
+                b = at
+                c = bt
+                d = ct
 
-            if A is not None:
+            if a is not None:
                 break
 
-        AD = np.array(D)-np.array(A)
-        BC = np.array(C)-np.array(B)
+        ad = np.array(d)-np.array(a)
+        bc = np.array(c)-np.array(b)
         bi_v = self._unit_vec(np.array(bisector[1]),np.array(bisector[0]))
-        h_o = abs(np.dot(AD,bi_v)/np.linalg.norm(bi_v))
+        h_o = abs(np.dot(ad,bi_v)/np.linalg.norm(bi_v))
 
-        # If the vector AD is perpendicular to the bisector then
+        # If the vector ad is perpendicular to the bisector then
         if np.allclose(h_o,0.0):
-            h_o = abs(np.linalg.norm(np.array(B)-np.array(A)))
+            h_o = abs(np.linalg.norm(np.array(b)-np.array(a)))
 
         # Here we'll use a bisection approach to find the correct value
         # for h. Technically there is a closed form solution but it is
@@ -440,18 +444,18 @@ class Polygon(object):
         count = 0
         while not correct_h and count < 100:
             test_v = bi_v*h_test
-            new_D = A + project(test_v,AD)
-            if np.allclose(new_D,A):
-                new_D = A + AD*h_test
+            new_d = a + project(test_v,ad)
+            if np.allclose(new_d,a):
+                new_d = a + ad*h_test
 
-            new_C = B + project(test_v,BC)
-            if np.allclose(new_C,B):
-                new_C = B + BC*h_test
+            new_c = b + project(test_v,bc)
+            if np.allclose(new_c,b):
+                new_c = b + bc*h_test
 
-            if abs(self._find_area(segments=self._find_segments(verts=[A,B,new_C,new_D]))-target) < self._eps:
+            if abs(self._find_area(segments=self._find_segments(verts=[a,b,new_c,new_d]))-target) < self._eps:
                 correct_h = True
 
-            elif self._find_area(segments=self._find_segments(verts=[A,B,new_C,new_D])) > target:
+            elif self._find_area(segments=self._find_segments(verts=[a,b,new_c,new_d])) > target:
                 h_test -= prev/2.
                 prev = prev/2.
             else:
@@ -463,20 +467,20 @@ class Polygon(object):
             raise RuntimeError("Could not find correct cut line for trapezoid in 100 iterations.")
 
         if rest_of_poly is None:
-            poly = [A,B,list(new_C),list(new_D)]
+            poly = [a,b,list(new_c),list(new_d)]
         else:
             poly = []
             for seg in rest_of_poly:
-                if seg[0] == A:
-                    poly.append(A)
-                    poly.append(B)
-                    poly.append(list(new_C))
-                    poly.append(list(new_D))
-                elif seg[0] == B:
-                    poly.append(B)
-                    poly.append(list(new_C))
-                    poly.append(list(new_D))
-                    poly.append(A)
+                if seg[0] == a:
+                    poly.append(a)
+                    poly.append(b)
+                    poly.append(list(new_c))
+                    poly.append(list(new_d))
+                elif seg[0] == b:
+                    poly.append(b)
+                    poly.append(list(new_c))
+                    poly.append(list(new_d))
+                    poly.append(a)
                 else:
                     poly.append(seg[0])
 
@@ -519,7 +523,8 @@ class Polygon(object):
 
         return True
     
-    def _line_intersection(self,line1,line2):
+    @staticmethod
+    def _line_intersection(line1,line2):
         """Finds the intersection of two lines. Code contributed by Paul Draper:
         https://stackoverflow.com/questions/20677795/how-do-i-compute-the-intersection-point-of-two-lines-in-python
         
@@ -630,8 +635,9 @@ class Polygon(object):
         # we return B since it is the vertex of the bisection and
         # bis_vec+B since it is a second point on the vector starting at B.
         return [B,bis_vec+B]
-
-    def _unit_vec(self,A,B):
+    
+    @staticmethod
+    def _unit_vec(A,B):
         """Finds the unit vector that points from A to B.
 
         Args:
@@ -677,9 +683,9 @@ class Polygon(object):
             segments (list): The paired segments of the vertices.
         """
         if verts is None:
-            return zip(self.vertices, self.vertices[1:] + [self.vertices[0]])
+            return list(zip(self.vertices, self.vertices[1:] + [self.vertices[0]]))
         else:
-            return zip(verts, verts[1:] + [verts[0]])
+            return list(zip(verts, verts[1:] + [verts[0]]))
 
     def _find_permimter(self,segments=None):
         """Finds the perimiter of the polygon.
