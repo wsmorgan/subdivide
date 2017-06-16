@@ -18,7 +18,7 @@ except ImportError:
 
 from os import path
 setup(name='subdivide',
-      version='0.1.0',
+      version='0.1.3',
       description='Subdivides a polygon or polyhedra into the desired number of equal sub-areas or sub-volumes.',
       long_description= "" if not path.isfile("README.md") else read_md('README.md'),
       author='Wiley S Morgan',

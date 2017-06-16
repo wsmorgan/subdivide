@@ -40,11 +40,44 @@ def test_subdived():
 
     verts = [[0,0],[1,0],[1,1],[0,1]]
     p = Polygon(verts)
-    out2 = [[[0, 0], [1, 0], [1.0, 0.5], [0.0, 0.5]], [[0.0, 0.5], [1.0, 0.5], [1, 1], [0, 1]]]
+    out2 = [[[0.0, 0.5], [0, 0], [1, 0], [1.0, 0.5]], [[0, 1], [0.0, 0.5], [1.0, 0.5], [1, 1]]]
+    print("test out",p.subdivide(2))
     assert out2 == p.subdivide(2)
 
     verts = [[0,0],[1,0],[1,1]]
     p = Polygon(verts)
 
-    out2 = [[[1, 0], [0.5, 0.5], [1, 1]], [[0.5, 0.5], [0, 0], [1, 0]]]
+    out2 = [[[0.5, 0.5], [1, 0], [1, 1]], [[0, 0], [1, 0], [0.5, 0.5]]]
+    print("test out",p.subdivide(2))
     assert out2 == p.subdivide(2)
+
+    with pytest.raises(TypeError):
+        p.subdivide(2.1)
+
+def test_finde_centroid():
+    """Tests the find centroid function of the Polygon class.
+    """
+
+    points = [[0,0],[0,1],[1,1],[1,0]]
+    p = Polygon(points)
+    assert [0.5,0.5] == p._find_centroid(points)
+
+    points = [[0,0],[0,1],[1,1]]
+    assert np.allclose([0.3333333333333333,0.6666666666666667],p._find_centroid(points))
+
+    points = [[0,0],[1,0],[0.5,1]]
+    assert np.allclose([0.5,0.3333333333333333],p._find_centroid(points))
+
+def test_cc_sort():
+    """Tests the sorting of points to be in counterclockwise oredr in the Polygon class.
+    """
+
+    verts = [[0,0],[1,0],[1,1],[0,1]]
+    p = Polygon(verts)
+
+    points = [[0,0],[0,1],[1,1],[1,0]]
+
+    assert [[0,1],[0,0],[1,0],[1,1]] == p._counter_clockwise_sort(points)
+
+    points = [[1,1],[0,0],[0.5,2],[1,0],[0,1]]
+    assert [[0, 1], [0, 0], [1, 0], [1, 1], [0.5, 2]] == p._counter_clockwise_sort(points)

@@ -52,6 +52,7 @@ class Polygon(object):
             remaining_verts = deepcopy(self.vertices)
             while len(sub_polys) < N-1:
                 sub_poly, remaining_verts = self._find_subdivision(remaining_verts,subarea)
+                print("sub_paly",sub_poly)
                 sub_polys.append(sub_poly)
             sub_polys.append(remaining_verts)
         else:
@@ -78,8 +79,10 @@ class Polygon(object):
                 after removing the sub_polygon's vertices.
         """
         from copy import deepcopy
-
+        print("START************************************************")
+        print("verts",verts)
         segments = self._find_segments(verts=verts)
+
         total_area = self._find_area(segments=segments)
         n_segs = len(segments)
         sub_poly_per = None
@@ -91,18 +94,18 @@ class Polygon(object):
                     divisions = self._create_new_areas(new_segments,segments)
                     test_poly = None
 
-                    if len(divisions) == 1 and self._find_area(divisions[0]) > area:
+                    if len(divisions) == 1 and self._find_area(segments=divisions[0]) > area:
                         if len(divisions[0]) == 3:
                             test_poly = self._triangle_cut(divisions[0],area,None)
                         elif len(divisions[0]) == 4:
                             test_poly = self._trapezoid_cut(divisions[0],area,bisector,None)
                     elif len(divisions) == 2:
-                        if self._find_area(divisions[0]) > area:
+                        if self._find_area(segments=divisions[0]) > area:
                             if len(divisions[0]) == 3:
                                 test_poly = self._triangle_cut(divisions[0],area,None)
                             elif len(divisions[0]) == 4:
                                 test_poly = self._trapezoid_cut(divisions[0],area,bisector,None)
-                        if self._find_area(divisions[1]) > area and test_poly is None:
+                        if self._find_area(segments=divisions[1]) > area and test_poly is None:
                             if len(divisions[1]) == 3:
                                 test_poly = self._triangle_cut(divisions[1],area,None)
                             elif len(divisions[1]) == 4:
@@ -126,7 +129,7 @@ class Polygon(object):
                                 test_poly = self._triangle_cut(divisions[2],area,None)
                             elif len(divisions[2]) == 4:
                                 test_poly = self._trapezoid_cut(divisions[2],area.bisector,None)
-                    else:
+                    else: #pragma: no cover
                         raise RuntimeError("The code found more than 3 divisions of "
                                            "the polygon for a given pair of line "
                                            "segments. This should not be possible.")
@@ -201,10 +204,10 @@ class Polygon(object):
         else:
             area_check = True            
 
-        if not area_check:
+        if not area_check: #pragma: no cover
             raise RuntimeError("Couldn't find the vertices of the remaining polygon.")
 
-        return sub_poly, remaining_poly
+        return self._counter_clockwise_sort(sub_poly), self._counter_clockwise_sort(remaining_poly)
 
     def _create_new_segments(self,line1,line2):
         """Finds the projection of the endpoints of the lines across the angle
@@ -223,7 +226,7 @@ class Polygon(object):
 
         bisector = self._angle_bisection(line1,line2)
         new_points = self._projections(line1,line2,bisector)
-
+        
         new_segments = []
 
         if len(new_points) == 2 and ((np.allclose(new_points[0][0],new_points[1][1]) and np.allclose(new_points[0][1],new_points[1][0])) or (np.allclose(new_points[0][0],new_points[1][0]) and np.allclose(new_points[0][1],new_points[1][1]))):
@@ -262,53 +265,99 @@ class Polygon(object):
                 new polgon of smaller area.
         """
 
-        from itertools import permutations
-        
         new_segments_local = []
         for seg in new_segments:
             if seg not in new_segments_local:
                 new_segments_local.append(seg)
             if seg[::-1] not in new_segments_local:
                 new_segments_local.append(seg[::-1])
-                
+
         all_segments = new_segments_local+old_segments
 
         new_areas = []
+        verts_lists = []
         for seg in new_segments_local:
             new_path =[seg]
+            new_verts = [seg[0]]
             cur_seg = seg
             for test_seg in all_segments:
                 if not (np.allclose(test_seg[0],cur_seg[0]) and np.allclose(test_seg[1],cur_seg[1])) and not (np.allclose(test_seg[0],cur_seg[1]) and np.allclose(test_seg[1],cur_seg[0])) and np.allclose(test_seg[0],cur_seg[1]):
-                    if not test_seg[0]==cur_seg[1]:
-                        cur_seg = list(cur_seg)
-                        cur_seg = cur_seg[:-1]
-                        cur_seg.append(test_seg[0])
-                        list(cur_seg)[1] = test_seg[0]
-                        new_path = new_path[:-1]
-                        new_path.append(tuple(cur_seg))
+                    
+                    between = False
+                    for v in new_verts:
+                        if self._is_between(test_seg[0],test_seg[1],v) and v not in test_seg:
+                            between = True
+                            break
+                        
+                    if not between:
+                        new_path.append(test_seg)
+                        new_verts.append(test_seg[0])
+                        cur_seg = test_seg
 
-                    new_path.append(test_seg)
-                    cur_seg = test_seg
+                        if np.allclose(cur_seg[1],seg[0]):
+                            break
+
+                        for test_seg_2 in new_segments_local:
+                            if not (np.allclose(test_seg_2[0],cur_seg[0]) and np.allclose(test_seg_2[1],cur_seg[1])) and not (np.allclose(test_seg_2[0],cur_seg[1]) and np.allclose(test_seg_2[1],cur_seg[0])) and np.allclose(test_seg_2[0],cur_seg[1]):
+
+                                between = False
+                                for v in new_verts:
+                                    if self._is_between(test_seg_2[0],test_seg_2[1],v) and v not in test_seg_2:
+                                        between = True
+                                        break
+                        
+                                if not between:
+                                    new_path.append(test_seg_2)
+                                    new_verts.append(test_seg_2[0])
+                                    cur_seg = test_seg_2
+                                    if np.allclose(cur_seg[1],seg[0]):
+                                        break
+
                     if np.allclose(cur_seg[1],seg[0]):
                         break
-                        
+                            
             if not np.allclose(cur_seg[1],seg[0]):
                 for test_seg in all_segments:
                     if not (np.allclose(test_seg[0],cur_seg[0]) and np.allclose(test_seg[1],cur_seg[1])) and not (np.allclose(test_seg[0],cur_seg[1]) and np.allclose(test_seg[1],cur_seg[0])) and np.allclose(test_seg[0],cur_seg[1]):
-                        if not test_seg[0]==cur_seg[1]:
-                            cur_seg = list(cur_seg)
-                            cur_seg = cur_seg[:-1]
-                            cur_seg.append(test_seg[0])
-                            list(cur_seg)[1] = test_seg[0]
-                            new_path = new_path[:-1]
-                            new_path.append(tuple(cur_seg))
+                        between = False
 
-                        new_path.append(test_seg)
-                        cur_seg = test_seg
+                        for v in new_verts:
+                            if self._is_between(test_seg[0],test_seg[1],v) and v not in test_seg:
+                                between = True
+                                break
+                            
+                        if not between:
+                            new_path.append(test_seg)
+                            new_verts.append(test_seg[0])
+                            cur_seg = test_seg
+                            if np.allclose(cur_seg[1],seg[0]):
+                                break
+                            
+                            for test_seg_2 in new_segments_local:
+                                if not (np.allclose(test_seg_2[0],cur_seg[0]) and np.allclose(test_seg_2[1],cur_seg[1])) and not (np.allclose(test_seg_2[0],cur_seg[1]) and np.allclose(test_seg_2[1],cur_seg[0])) and np.allclose(test_seg_2[0],cur_seg[1]):
+                                    between = False
+                                    
+                                    for v in new_verts:
+                                        if self._is_between(test_seg_2[0],test_seg_2[1],v) and v not in test_seg_2:
+                                            between = True
+                                            break
+                        
+                                    if not between:
+                                        new_path.append(test_seg_2)
+                                        new_verts.append(test_seg_2[0])
+                                        cur_seg = test_seg_2
+                                        if np.allclose(cur_seg[1],seg[0]):
+                                            break
+
                         if np.allclose(cur_seg[1],seg[0]):
                             break
-            if not new_path in new_areas and len(new_path) > 2 and len(new_path) <= len(self._segments) and self._find_permimter(segments=new_path) <= self.perimiter:
+                        
+            cur_verts = [x for (x,y) in new_path]
+            cur_verts = self._counter_clockwise_sort(cur_verts)
+            # new_path = self._find_segments(verts=cur_verts)
+            if not new_path in new_areas and len(new_path) > 2 and len(new_path) <= len(self._segments) and self._find_permimter(segments=new_path) <= self.perimiter and np.allclose(new_path[0][0],new_path[-1][1]) and cur_verts not in verts_lists:
                 new_areas.append(new_path)
+                verts_lists.append(cur_verts)
 
         return new_areas
 
@@ -369,7 +418,7 @@ class Polygon(object):
                 else:
                     poly.append(seg[0])
                     
-        if abs(self._find_area(segments=self._find_segments(verts=poly))-total_area) > self._eps:
+        if abs(self._find_area(segments=self._find_segments(verts=poly))-total_area) > self._eps: #pragma: no cover
             raise RuntimeError("Failed to find a cut line for the target area in "
                                "triange_cut.")
 
@@ -391,6 +440,8 @@ class Polygon(object):
         Raises:
             RunTimeError: A RunTimeError is raised if the corroct area cannot be found.
         """
+        print("segments",segments)
+        
         if rest_of_poly is None:
             target = total_area
         else:
@@ -466,7 +517,8 @@ class Polygon(object):
             new_c = b + project(test_v,bc)
             if np.allclose(new_c,b):
                 new_c = b + bc*h_test
-
+            # print("a",a,"b",b,"c",new_c,"d",new_d)
+            # print("conv?",abs(self._find_area(segments=self._find_segments(verts=[a,b,new_c,new_d]))-target))
             if abs(self._find_area(segments=self._find_segments(verts=[a,b,new_c,new_d]))-target) < self._eps:
                 correct_h = True
 
@@ -478,7 +530,7 @@ class Polygon(object):
                 prev = prev/2.
             count += 1
 
-        if count == 100:
+        if count == 100: #pragma: no cover
             raise RuntimeError("Could not find correct cut line for trapezoid in 100 iterations.")
 
         if rest_of_poly is None:
@@ -499,7 +551,7 @@ class Polygon(object):
                 else:
                     poly.append(seg[0])
 
-        if abs(self._find_area(segments=self._find_segments(verts=poly))-total_area) > self._eps:
+        if abs(self._find_area(segments=self._find_segments(verts=poly))-total_area) > self._eps: #pragma: no cover
             raise RuntimeError("Failed to find a cut line for the target area in "
                                "trapeziod_cut.")
 
@@ -643,7 +695,7 @@ class Polygon(object):
             else:
                 C = np.array(line2[1])
                 
-            if self._is_between(A,C,B):
+            if self._is_between(A,C,B): #pragma: no cover
                 raise RuntimeError("Could not find a valid bisection of the line segmentns selected.")
             
         BA = self._unit_vec(B,A)
@@ -720,3 +772,74 @@ class Polygon(object):
             return sum(np.sqrt((x1-x0)**2 + (y1-y0)**2) for ((x0,y0),(x1,y1)) in self._segments)
         else:
             return sum(np.sqrt((x1-x0)**2 + (y1-y0)**2) for ((x0,y0),(x1,y1)) in segments)
+
+    @staticmethod
+    def _find_centroid(points):
+        """Finds the centroid of the given list of points. 
+
+        Args:
+            points (list): A list of [x, y] pairs.
+
+        Returns:
+            centroid (list): The [x, y] pair of the centroid.
+        """
+
+        x = [p[0] for p in points]
+        y = [p[1] for p in points]
+        n = len(points)
+        
+        centroid = [sum(x)/float(n),sum(y)/float(n)]
+
+        return centroid
+
+    def _counter_clockwise_sort(self,points):
+        """Sorts the points to be in counter clockwise oreder.
+
+        Args:
+            points (list): A list of [x, y] pairs:
+
+        Returns:
+            cc_points (list): A list of the [x, y] pairs sorted to be 
+                in counter clockwise order.
+        """
+
+        self._center = self._find_centroid(points)
+
+        def clockwiseangle_and_distance(point):
+            """Returns the angle and distance from the centeroid of the point.
+            This code is modified from code contributed by MSeifert at:
+            https://stackoverflow.com/questions/41855695/sorting-list-of-two-dimensional-coordinates-by-clockwise-angle-using-python
+
+            Args:
+                point (list): The [x,y] pair to be sorted.
+            
+            Returns:
+                angle, distance (float, float): The angle and the distance from the centroid 
+                    of the polygon.
+            """
+            import math
+
+            refvec = [0,1]
+            # Vector between point and the origin: v = p - 
+            vector = [point[0]-self._center[0], point[1]-self._center[1]]
+            # Length of vector: ||v||
+            lenvector = math.hypot(vector[0], vector[1])
+            # If length is zero there is no angle
+            if lenvector == 0:
+                return -math.pi, 0
+            # Normalize vector: v/||v||
+            normalized = [vector[0]/lenvector, vector[1]/lenvector]
+            dotprod  = normalized[0]*refvec[0] + normalized[1]*refvec[1]     # x1*x2 + y1*y2
+            diffprod = refvec[1]*normalized[0] - refvec[0]*normalized[1]     # x1*y2 - y1*x2
+            angle = math.atan2(diffprod, dotprod)
+            # Negative angles represent counter-clockwise angles so we need to subtract them 
+            # from 2*pi (360 degrees)
+            if angle < 0:
+                return 2*math.pi+angle, lenvector
+            # I return first the angle because that's the primary sorting criterium
+            # but if two vectors have the same angle then the shorter distance should come first.
+            return angle, lenvector
+
+        cc_points = sorted(points,key=clockwiseangle_and_distance)
+
+        return cc_points[::-1]
