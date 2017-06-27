@@ -52,7 +52,6 @@ class Polygon(object):
             remaining_verts = deepcopy(self.vertices)
             while len(sub_polys) < N-1:
                 sub_poly, remaining_verts = self._find_subdivision(remaining_verts,subarea)
-                print("sub_paly",sub_poly)
                 sub_polys.append(sub_poly)
             sub_polys.append(remaining_verts)
         else:
@@ -79,8 +78,7 @@ class Polygon(object):
                 after removing the sub_polygon's vertices.
         """
         from copy import deepcopy
-        print("START************************************************")
-        print("verts",verts)
+        
         segments = self._find_segments(verts=verts)
 
         total_area = self._find_area(segments=segments)
@@ -93,42 +91,41 @@ class Polygon(object):
                     new_segments, bisector, self._new_points = self._create_new_segments(segments[i],segments[j])
                     divisions = self._create_new_areas(new_segments,segments)
                     test_poly = None
-
                     if len(divisions) == 1 and self._find_area(segments=divisions[0]) > area:
                         if len(divisions[0]) == 3:
-                            test_poly = self._triangle_cut(divisions[0],area,None)
+                            test_poly = self._triangle_cut(divisions[0],area,segments,None)
                         elif len(divisions[0]) == 4:
-                            test_poly = self._trapezoid_cut(divisions[0],area,bisector,None)
+                            test_poly = self._trapezoid_cut(divisions[0],area,bisector,segments,None)
                     elif len(divisions) == 2:
                         if self._find_area(segments=divisions[0]) > area:
                             if len(divisions[0]) == 3:
-                                test_poly = self._triangle_cut(divisions[0],area,None)
+                                test_poly = self._triangle_cut(divisions[0],area,segments,None)
                             elif len(divisions[0]) == 4:
-                                test_poly = self._trapezoid_cut(divisions[0],area,bisector,None)
+                                test_poly = self._trapezoid_cut(divisions[0],area,bisector,segments,None)
                         if self._find_area(segments=divisions[1]) > area and test_poly is None:
                             if len(divisions[1]) == 3:
-                                test_poly = self._triangle_cut(divisions[1],area,None)
+                                test_poly = self._triangle_cut(divisions[1],area,segments,None)
                             elif len(divisions[1]) == 4:
-                                test_poly = self._trapezoid_cut(divisions[1],area,bisector,None)
+                                test_poly = self._trapezoid_cut(divisions[1],area,bisector,segments,None)
                     elif len(divisions) == 3:
                         area1 = self._find_area(segments=divisions[0])
                         area2 = self._find_area(segments=divisions[1])
                         area3 = self._find_area(segments=divisions[2])
                         if area1 > area:
                             if len(divisions[0]) == 3:
-                                test_poly = self._triangle_cut(divisions[0],area,None)
+                                test_poly = self._triangle_cut(divisions[0],area,segments,None)
                             elif len(divisions[0]) == 4:
-                                test_poly = self._trapezoid_cut(divisions[0],area,bisector,None)
+                                test_poly = self._trapezoid_cut(divisions[0],area,bisector,segments,None)
                         elif (area1 + area2) > area:
                             if len(divisions[1]) == 3:
-                                test_poly = self._triangle_cut(divisions[1],area,divisions[0])
+                                test_poly = self._triangle_cut(divisions[1],area,segments,divisions[0])
                             elif len(divisions[1]) == 4:
-                                test_poly = self._trapezoid_cut(divisions[1],area,bisector,divisions[0])
+                                test_poly = self._trapezoid_cut(divisions[1],area,bisector,segments,divisions[0])
                         if area3 > area and test_poly is None:
                             if len(divisions[2]) == 3:
-                                test_poly = self._triangle_cut(divisions[2],area,None)
+                                test_poly = self._triangle_cut(divisions[2],area,segments,None)
                             elif len(divisions[2]) == 4:
-                                test_poly = self._trapezoid_cut(divisions[2],area.bisector,None)
+                                test_poly = self._trapezoid_cut(divisions[2],area,bisector,segments,None)
                     else: #pragma: no cover
                         raise RuntimeError("The code found more than 3 divisions of "
                                            "the polygon for a given pair of line "
@@ -143,7 +140,7 @@ class Polygon(object):
                             if abs(self._find_area(segments=test_segs) - area) < self._eps and self._find_permimter(segments=test_segs) < sub_poly_per:
                                 sub_poly = test_poly
                                 sub_poly_per = self._find_permimter(segments=test_segs)
-
+                                
         # Add the vertices for the newly found polygon to the list so
         # that we can determine what the remaining larger polygon looks like.
         temp_verts = deepcopy(verts)
@@ -156,7 +153,6 @@ class Polygon(object):
                         next_loc = 0
                     else:
                         next_loc = loc+1
-
                     if self._is_between(temp_verts[loc],temp_verts[next_loc],vert):
                         new_loc = next_loc
                     else:
@@ -293,7 +289,7 @@ class Polygon(object):
                         new_path.append(test_seg)
                         new_verts.append(test_seg[0])
                         cur_seg = test_seg
-
+                        
                         if np.allclose(cur_seg[1],seg[0]):
                             break
 
@@ -354,19 +350,20 @@ class Polygon(object):
                         
             cur_verts = [x for (x,y) in new_path]
             cur_verts = self._counter_clockwise_sort(cur_verts)
-            # new_path = self._find_segments(verts=cur_verts)
+
             if not new_path in new_areas and len(new_path) > 2 and len(new_path) <= len(self._segments) and self._find_permimter(segments=new_path) <= self.perimiter and np.allclose(new_path[0][0],new_path[-1][1]) and cur_verts not in verts_lists:
                 new_areas.append(new_path)
                 verts_lists.append(cur_verts)
 
         return new_areas
 
-    def _triangle_cut(self,segments,total_area,rest_of_poly):
+    def _triangle_cut(self,segments,total_area,orig_segments,rest_of_poly):
         """Finds the desired cut inside a triangle to get the correct area.
         
         Args:
             segments (list): The line segments that form the triangel.
             total_area (float): The area desired after the cut.
+            orig_segments (list): The line segments of the uncut polygon.
             rest_of_poly (list): The line segments containing the rest of the
                 polygon whose area will contribute.
 
@@ -374,34 +371,49 @@ class Polygon(object):
             poly (list): The vertices that form the polygon with the desired area.
 
         Raises:
-            RunTimeError: A RunTimeError is raised if the corroct area cannot be found.
+            RunTimeError: A RunTimeError is raised if the correct area cannot be found.
+            RunTimeError: A RunTiemError is raised if 1 of segments passed to 
+                the subroutine is not part of the original polygon.
         """
 
         if rest_of_poly is None:
             target = total_area
         else:
             target = total_area - self._find_area(rest_of_poly)
-
-        a = None
-        for point in self._new_points:
-            if segments[0] in self._segments:
-                a = segments[0][0]
-                b = segments[1][1]
-                c = segments[0][1]
-            elif segments[1] in self._segments:
-                a = segments[1][0]
-                b = segments[2][1]
-                c = segments[1][1]
-            elif segments[2] in self._segments:
-                a = segments[2][0]
-                b = segments[0][1]
-                c = segments[2][1]
-
-            if a is not None:
-                break
             
+        if segments[0] in orig_segments:
+            b = segments[1][1]
+            c = segments[0][0]
+            a = segments[0][1]
+        elif segments[1] in orig_segments:
+            b = segments[2][1]
+            a = segments[1][1]
+            c = segments[1][0]
+        elif segments[2] in orig_segments:
+            b = segments[0][1]
+            a = segments[2][0]
+            c = segments[2][1]
+        else:
+            RuntimeError("Could not find a line segment from the original polygon in "
+                         "_triangle_cut. This should not be possible.")
+
         cut_point = list(np.array(c) + target/self._find_area(segments=segments)*(np.array(b)-np.array(c)))
 
+        between = False
+        for seg in orig_segments:
+            if self._is_between(seg[0],seg[1],cut_point):
+                between = True
+                break
+
+        # If the cut point isn't on one of the original polygon edges
+        # we got the order of a and c wrong.
+        if not between:
+            temp_a = a
+            a = c
+            c = temp_a
+            cut_point = list(np.array(c) + target/self._find_area(segments=segments)*(np.array(b)-np.array(c)))
+            
+            
         if rest_of_poly is None:
             poly = [a,cut_point,c]
         else:
@@ -424,13 +436,14 @@ class Polygon(object):
 
         return poly
 
-    def _trapezoid_cut(self,segments,total_area,bisector,rest_of_poly):
+    def _trapezoid_cut(self,segments,total_area,bisector,orig_segments,rest_of_poly):
         """Finds the desired cut inside a trapezoid to get the correct area.
         
         Args:
             segments (list): The line segments that form the trapezoid.
             total_area (float): The area desired after the cut.
             bisector (list): The endpoints of the bisector.
+            orig_segments (list): The line segments of the uncut polygon.
             rest_of_poly (list): The line segments containing the rest of the
                 polygon whose area will contribute.
 
@@ -439,44 +452,39 @@ class Polygon(object):
 
         Raises:
             RunTimeError: A RunTimeError is raised if the corroct area cannot be found.
+            RunTimeError: A RunTiemError is raised if fewer than 2 segments passed to 
+                the subroutine are not part of the original polygon.
         """
-        print("segments",segments)
         
         if rest_of_poly is None:
             target = total_area
         else:
             target = total_area - self._find_area(rest_of_poly)
 
-        at = segments[0][0]
-        bt = segments[1][0]
-        ct = segments[2][0]
-        dt = segments[3][0]
-
-        a = None
-        for point in self._new_points:
-            if at == point[1]:
-                a = at
-                b = bt
-                c = ct
-                d = dt
-            elif bt == point[1]:
-                a = bt
-                b = ct
-                c = dt
-                d = at
-            elif ct == point[1]:
-                a = ct
-                b = dt
-                c = at
-                d = bt
-            elif dt == point[1]:
-                a = dt
-                b = at
-                c = bt
-                d = ct
-
-            if a is not None:
-                break
+        if segments[0] in orig_segments and segments[1] in orig_segments:
+            a = segments[0][0]
+            b = segments[1][0]
+            c = segments[1][1]
+            d = segments[2][1]
+        elif segments[1] in orig_segments and segments[2] in orig_segments:
+            a = segments[1][0]
+            b = segments[2][0]
+            c = segments[2][1]
+            d = segments[3][1]
+        elif segments[2] in orig_segments and segments[3] in orig_segments:
+            a = segments[2][0]
+            b = segments[3][0]
+            c = segments[3][1]
+            d = segments[0][1]
+        elif segments[3] in orig_segments and segments[0] in orig_segments:
+            a = segments[3][0]
+            b = segments[0][0]
+            c = segments[0][1]
+            d = segments[1][1]
+        else:
+            RuntimeError("Could not find the correct segments in the _trapezoid_cut "
+                         "routine. The trapezoid constructed does not have 2 sides from the "
+                         "original shape. This should not be possileb.")
 
         ad = np.array(d)-np.array(a)
         bc = np.array(c)-np.array(b)
@@ -491,8 +499,9 @@ class Polygon(object):
         # for h. Technically there is a closed form solution but it is
         # really ugly and this might honestly be faster.
         correct_h = False
-        h_test = h_o/2.
-        prev = h_o/2.
+        h_test = 1./2.
+        prev_step = 1./2.
+        step = 1./2.
         
         def project(a,b):
             """Projects a onto b.
@@ -507,7 +516,13 @@ class Polygon(object):
 
             return b * np.dot(a,b)/np.linalg.norm(b)
 
+        test_v = bi_v*h_test
+        new_d = a + project(test_v,ad)
+        if not self._is_between(a,d,new_d):
+            bi_v = self._unit_vec(np.array(bisector[0]),np.array(bisector[1]))
+            
         count = 0
+        prev_area = self._find_area(segments=self._find_segments(verts=[a,b,c,d]))
         while not correct_h and count < 100:
             test_v = bi_v*h_test
             new_d = a + project(test_v,ad)
@@ -517,17 +532,32 @@ class Polygon(object):
             new_c = b + project(test_v,bc)
             if np.allclose(new_c,b):
                 new_c = b + bc*h_test
-            # print("a",a,"b",b,"c",new_c,"d",new_d)
-            # print("conv?",abs(self._find_area(segments=self._find_segments(verts=[a,b,new_c,new_d]))-target))
-            if abs(self._find_area(segments=self._find_segments(verts=[a,b,new_c,new_d]))-target) < self._eps:
+
+            cur_area = self._find_area(segments=self._find_segments(verts=[a,b,new_c,new_d]))
+            if abs(cur_area-target) < self._eps:
                 correct_h = True
 
-            elif self._find_area(segments=self._find_segments(verts=[a,b,new_c,new_d])) > target:
-                h_test -= prev/2.
-                prev = prev/2.
+            elif abs(cur_area-prev_area)>abs(cur_area-target):
+                if cur_area > target:
+                    prev_step = step
+                    step = step/2.
+                    h_test -= step
+                    prev_area = cur_area
+                else:
+                    prev_step = step
+                    step = step/2.
+                    h_test +=step
+                    prev_area = cur_area
             else:
-                h_test +=prev/2.
-                prev = prev/2.
+                if cur_area > target:
+                    step = prev_step
+                    h_test -= step
+                    prev_area = cur_area
+                else:
+                    step = prev_step
+                    h_test +=step
+                    prev_area = cur_area
+                
             count += 1
 
         if count == 100: #pragma: no cover
@@ -554,7 +584,7 @@ class Polygon(object):
         if abs(self._find_area(segments=self._find_segments(verts=poly))-total_area) > self._eps: #pragma: no cover
             raise RuntimeError("Failed to find a cut line for the target area in "
                                "trapeziod_cut.")
-
+        
         return poly            
         
     def _is_between(self,a,b,c):
