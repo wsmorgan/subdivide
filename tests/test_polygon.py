@@ -44,10 +44,12 @@ def test_subdived():
     print("test out",p.subdivide(2))
     assert out2 == p.subdivide(2)
 
+    assert 8 == len(p.subdivide(8))
+    
     verts = [[0,0],[1,0],[1,1]]
     p = Polygon(verts)
 
-    out2 = [[[0, 0], [1, 0], [0.5, 0.5]], [[0.5, 0.5], [1, 0], [1, 1]]]
+    out2 = [[[0.5, 0.5], [1, 0], [1, 1]], [[0, 0], [1, 0], [0.5, 0.5]]]
     print("test out",p.subdivide(2))
     assert out2 == p.subdivide(2)
 

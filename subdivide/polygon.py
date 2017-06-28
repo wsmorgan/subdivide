@@ -130,6 +130,7 @@ class Polygon(object):
                         raise RuntimeError("The code found more than 3 divisions of "
                                            "the polygon for a given pair of line "
                                            "segments. This should not be possible.")
+
                     if test_poly is not None:
                         test_segs = self._find_segments(verts=test_poly)
                         if sub_poly_per is None:
@@ -153,6 +154,7 @@ class Polygon(object):
                         next_loc = 0
                     else:
                         next_loc = loc+1
+                        
                     if self._is_between(temp_verts[loc],temp_verts[next_loc],vert):
                         new_loc = next_loc
                     else:
@@ -175,10 +177,20 @@ class Polygon(object):
         from itertools import combinations
         remaining_poly = []
         for vert in temp_verts:
-            if vert in sub_poly and vert not in verts:
+            in_sub_poly = False
+            in_verts = False
+            for sub in sub_poly:
+                if np.allclose(vert,sub):
+                    in_sub_poly = True
+                    break
+            for v in verts:
+                if np.allclose(vert,v):
+                    in_verts = True
+                    break
+            if in_sub_poly and not in_verts:
                 #this is a new vertex that splits the regoins.
                 remaining_poly.append(vert)
-            elif vert in verts and vert not in sub_poly:
+            elif in_verts and not in_sub_poly:
                 # This is a vertex in the original polygon only.
                 remaining_poly.append(vert)
 
@@ -276,87 +288,81 @@ class Polygon(object):
             new_path =[seg]
             new_verts = [seg[0]]
             cur_seg = seg
-            for test_seg in all_segments:
-                if not (np.allclose(test_seg[0],cur_seg[0]) and np.allclose(test_seg[1],cur_seg[1])) and not (np.allclose(test_seg[0],cur_seg[1]) and np.allclose(test_seg[1],cur_seg[0])) and np.allclose(test_seg[0],cur_seg[1]):
-                    
-                    between = False
-                    for v in new_verts:
-                        if self._is_between(test_seg[0],test_seg[1],v) and v not in test_seg:
-                            between = True
-                            break
-                        
-                    if not between:
-                        new_path.append(test_seg)
-                        new_verts.append(test_seg[0])
-                        cur_seg = test_seg
-                        
-                        if np.allclose(cur_seg[1],seg[0]):
-                            break
 
-                        for test_seg_2 in new_segments_local:
-                            if not (np.allclose(test_seg_2[0],cur_seg[0]) and np.allclose(test_seg_2[1],cur_seg[1])) and not (np.allclose(test_seg_2[0],cur_seg[1]) and np.allclose(test_seg_2[1],cur_seg[0])) and np.allclose(test_seg_2[0],cur_seg[1]):
-
-                                between = False
-                                for v in new_verts:
-                                    if self._is_between(test_seg_2[0],test_seg_2[1],v) and v not in test_seg_2:
-                                        between = True
-                                        break
-                        
-                                if not between:
-                                    new_path.append(test_seg_2)
-                                    new_verts.append(test_seg_2[0])
-                                    cur_seg = test_seg_2
-                                    if np.allclose(cur_seg[1],seg[0]):
-                                        break
-
-                    if np.allclose(cur_seg[1],seg[0]):
-                        break
-                            
+            new_path, new_verts, cur_seg = self._connect_segments(all_segments,new_segments_local,new_verts,new_path,cur_seg)
             if not np.allclose(cur_seg[1],seg[0]):
-                for test_seg in all_segments:
-                    if not (np.allclose(test_seg[0],cur_seg[0]) and np.allclose(test_seg[1],cur_seg[1])) and not (np.allclose(test_seg[0],cur_seg[1]) and np.allclose(test_seg[1],cur_seg[0])) and np.allclose(test_seg[0],cur_seg[1]):
-                        between = False
+                new_path, new_verts, cur_seg = self._connect_segments(all_segments,new_segments_local,new_verts,new_path,cur_seg)
+            if not np.allclose(cur_seg[1],seg[0]) and (np.allclose(cur_seg[1][0],seg[0][0]) or np.allclose(cur_seg[1][1],seg[0][1])):
+                new_path.append((cur_seg[1],seg[0]))
 
-                        for v in new_verts:
-                            if self._is_between(test_seg[0],test_seg[1],v) and v not in test_seg:
-                                between = True
-                                break
-                            
-                        if not between:
-                            new_path.append(test_seg)
-                            new_verts.append(test_seg[0])
-                            cur_seg = test_seg
-                            if np.allclose(cur_seg[1],seg[0]):
-                                break
-                            
-                            for test_seg_2 in new_segments_local:
-                                if not (np.allclose(test_seg_2[0],cur_seg[0]) and np.allclose(test_seg_2[1],cur_seg[1])) and not (np.allclose(test_seg_2[0],cur_seg[1]) and np.allclose(test_seg_2[1],cur_seg[0])) and np.allclose(test_seg_2[0],cur_seg[1]):
-                                    between = False
-                                    
-                                    for v in new_verts:
-                                        if self._is_between(test_seg_2[0],test_seg_2[1],v) and v not in test_seg_2:
-                                            between = True
-                                            break
-                        
-                                    if not between:
-                                        new_path.append(test_seg_2)
-                                        new_verts.append(test_seg_2[0])
-                                        cur_seg = test_seg_2
-                                        if np.allclose(cur_seg[1],seg[0]):
-                                            break
-
-                        if np.allclose(cur_seg[1],seg[0]):
-                            break
-                        
             cur_verts = [x for (x,y) in new_path]
             cur_verts = self._counter_clockwise_sort(cur_verts)
-
             if not new_path in new_areas and len(new_path) > 2 and len(new_path) <= len(self._segments) and self._find_permimter(segments=new_path) <= self.perimiter and np.allclose(new_path[0][0],new_path[-1][1]) and cur_verts not in verts_lists:
                 new_areas.append(new_path)
                 verts_lists.append(cur_verts)
 
         return new_areas
 
+    def _connect_segments(self,all_segments,new_segments,new_verts,new_path,cur_seg):
+        """Connects the segments to form the correct paths formed by the new
+        and old segments.
+
+        Args:
+            all_segments (list): A list of all the segments that can be used.
+            new_segments (list): A list of the newly formed segments.
+            new_verts (list): A list of vertices that hav been used to create the path so far.
+            new_path (list): A list of segments used to form the path so far.
+            cur_seg (tuple): The current segment being considered.
+
+        Returns:
+
+            new_path, new_verts, cur_seg (list,list,tuple): A list of
+                the segments that form the new path that has been
+                constructed, a list of the vertices in the new path,
+                the new segment most recently used.
+        """
+        # The segment that starts the path.
+        seg = new_path[0]
+
+        for test_seg in all_segments:
+            if not (np.allclose(test_seg[0],cur_seg[0]) and np.allclose(test_seg[1],cur_seg[1])) and not (np.allclose(test_seg[0],cur_seg[1]) and np.allclose(test_seg[1],cur_seg[0])) and np.allclose(test_seg[0],cur_seg[1]):
+
+                between = False
+                for v in new_verts:
+                    if self._is_between(test_seg[0],test_seg[1],v) and v not in test_seg:
+                        between = True
+                        break
+
+                if not between:
+                    new_path.append(test_seg)
+                    new_verts.append(test_seg[0])
+                    cur_seg = test_seg
+
+                    if np.allclose(cur_seg[1],seg[0]):
+                        break
+
+                    for test_seg_2 in new_segments:
+                        if not (np.allclose(test_seg_2[0],cur_seg[0]) and np.allclose(test_seg_2[1],cur_seg[1])) and not (np.allclose(test_seg_2[0],cur_seg[1]) and np.allclose(test_seg_2[1],cur_seg[0])) and np.allclose(test_seg_2[0],cur_seg[1]):
+
+                            between = False
+                            for v in new_verts:
+                                if self._is_between(test_seg_2[0],test_seg_2[1],v) and v not in test_seg_2:
+                                    between = True
+                                    break
+
+                            if not between:
+                                new_path.append(test_seg_2)
+                                new_verts.append(test_seg_2[0])
+                                cur_seg = test_seg_2
+
+                                if np.allclose(cur_seg[1],seg[0]):
+                                    break
+
+                if np.allclose(cur_seg[1],seg[0]):
+                    break
+
+        return new_path, new_verts, cur_seg
+        
     def _triangle_cut(self,segments,total_area,orig_segments,rest_of_poly):
         """Finds the desired cut inside a triangle to get the correct area.
         
@@ -380,21 +386,25 @@ class Polygon(object):
             target = total_area
         else:
             target = total_area - self._find_area(rest_of_poly)
-            
-        if segments[0] in orig_segments:
-            b = segments[1][1]
-            c = segments[0][0]
-            a = segments[0][1]
-        elif segments[1] in orig_segments:
-            b = segments[2][1]
-            a = segments[1][1]
-            c = segments[1][0]
-        elif segments[2] in orig_segments:
-            b = segments[0][1]
-            a = segments[2][0]
-            c = segments[2][1]
+
+        n_segments = len(segments)
+        in_orig = None
+        for i in range(n_segments):
+            for o_segment in orig_segments:
+                if np.allclose(segments[i],o_segment) or np.allclose(segments[i][::-1],o_segment):
+                    in_orig = i
+                    break
+        if in_orig is not None:
+            if in_orig == 2:
+                b = segments[0][1]
+                c = segments[in_orig][1]
+                a = segments[in_orig][0]
+            else:
+                b = segments[in_orig+1][1]
+                c = segments[in_orig][0]
+                a = segments[in_orig][1]
         else:
-            RuntimeError("Could not find a line segment from the original polygon in "
+            raise RuntimeError("Could not find a line segment from the original polygon in "
                          "_triangle_cut. This should not be possible.")
 
         cut_point = list(np.array(c) + target/self._find_area(segments=segments)*(np.array(b)-np.array(c)))
@@ -461,48 +471,55 @@ class Polygon(object):
         else:
             target = total_area - self._find_area(rest_of_poly)
 
-        if segments[0] in orig_segments and segments[1] in orig_segments:
-            a = segments[0][0]
-            b = segments[1][0]
-            c = segments[1][1]
-            d = segments[2][1]
-        elif segments[1] in orig_segments and segments[2] in orig_segments:
-            a = segments[1][0]
-            b = segments[2][0]
-            c = segments[2][1]
-            d = segments[3][1]
-        elif segments[2] in orig_segments and segments[3] in orig_segments:
-            a = segments[2][0]
-            b = segments[3][0]
-            c = segments[3][1]
-            d = segments[0][1]
-        elif segments[3] in orig_segments and segments[0] in orig_segments:
-            a = segments[3][0]
-            b = segments[0][0]
-            c = segments[0][1]
-            d = segments[1][1]
+        count = 0
+        in_orig = []
+        n_segments = len(segments)
+        for i in range(n_segments):
+            if count == 0:                
+                for o_segment in orig_segments:
+                    if np.allclose(o_segment,segments[i]):
+                        count += 1
+                        in_orig.append(i)
+                        break
+                    
+            elif len(in_orig) == 1:
+                if in_orig[0] == 0 and i == n_segments-1:
+                    for o_segment in orig_segments:
+                        if np.allclose(o_segment,segments[i]):
+                            count += 1
+                            in_orig.append(i)
+                            break
+                        
+                elif i == in_orig[0]+1:
+                    for o_segment in orig_segments:
+                        if np.allclose(o_segment,segments[i]):
+                            count += 1
+                            in_orig.append(i)
+                            break
+                        
+            else:
+                for o_segment in orig_segments:
+                    if np.allclose(o_segment,segments[i]):
+                        count += 1
+                        break
+            
+        if len(in_orig) == 2:
+            a = segments[in_orig[0]][0]
+            b = segments[in_orig[1]][0]
+            c = segments[in_orig[1]][1]
+            if in_orig[1] == n_segments -1:
+                d = segments[0][1]
+            else:
+                d = segments[in_orig[1]+1][1]
         else:
-            RuntimeError("Could not find the correct segments in the _trapezoid_cut "
+            raise RuntimeError("Could not find the correct segments in the _trapezoid_cut "
                          "routine. The trapezoid constructed does not have 2 sides from the "
-                         "original shape. This should not be possileb.")
-
+                         "original shape. This should not be possible.")
+        
         ad = np.array(d)-np.array(a)
         bc = np.array(c)-np.array(b)
         bi_v = self._unit_vec(np.array(bisector[1]),np.array(bisector[0]))
-        h_o = abs(np.dot(ad,bi_v)/np.linalg.norm(bi_v))
 
-        # If the vector ad is perpendicular to the bisector then
-        if np.allclose(h_o,0.0):
-            h_o = abs(np.linalg.norm(np.array(b)-np.array(a)))
-
-        # Here we'll use a bisection approach to find the correct value
-        # for h. Technically there is a closed form solution but it is
-        # really ugly and this might honestly be faster.
-        correct_h = False
-        h_test = 1./2.
-        prev_step = 1./2.
-        step = 1./2.
-        
         def project(a,b):
             """Projects a onto b.
             
@@ -516,11 +533,54 @@ class Polygon(object):
 
             return b * np.dot(a,b)/np.linalg.norm(b)
 
+        h_test = 1./2.
         test_v = bi_v*h_test
-        new_d = a + project(test_v,ad)
+
+        if count != 4:
+            ordered = False
+        else:
+            ordered = True
+            new_d = a + project(test_v,ad)
+            new_c = b + project(test_v,bc)
+            
+        orig_a = a
+        while not ordered:
+            right_c = False
+            right_d = False
+            new_d = a + project(test_v,ad)
+            new_c = b + project(test_v,bc)
+
+            for segment in orig_segments:
+                if self._is_between(segment[0],segment[1],new_c) and not np.allclose(new_c,b):
+                    right_c = True
+                elif self._is_between(segment[0],segment[1],new_d) and not np.allclose(new_d,a):
+                    right_d = True
+
+            if right_d and right_c:
+                ordered = True
+            else:
+                temp_a = a
+                a = b
+                b = c
+                c = d
+                d = temp_a
+                ad = np.array(d)-np.array(a)
+                bc = np.array(c)-np.array(b)
+
+            if orig_a == a and not ordered:
+                raise RuntimeError("Couldn't order the vertices correctly in _trapezoid_cut.")
+            
         if not self._is_between(a,d,new_d):
             bi_v = self._unit_vec(np.array(bisector[0]),np.array(bisector[1]))
             
+        # Here we'll use a bisection approach to find the correct value
+        # for h. Technically there is a closed form solution but it is
+        # really ugly and this might honestly be faster.
+        correct_h = False
+        h_test = 1./2.
+        prev_step = 1./2.
+        step = 1./2.
+        
         count = 0
         prev_area = self._find_area(segments=self._find_segments(verts=[a,b,c,d]))
         while not correct_h and count < 100:

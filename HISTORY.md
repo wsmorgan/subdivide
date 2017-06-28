@@ -1,5 +1,12 @@
 # Revision History for "subdivide"
 
+## Revision 0.1.5
+- Implemented changes to increase the number of subdivisions the code can go to.
+- Refactored the _create_new_areas subroutine and created
+  _connect_segments to make the code more readoble and to make
+  debugging more efficient.
+- Fixed vertex selection in _trapezoid_cut.
+
 ## Revision 0.1.4
 - Fixed the vertex selection in _trapezoid_cut reported in issue #10.
 - Started trying to resolve the dug described in issue #7.
