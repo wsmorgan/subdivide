@@ -1,5 +1,12 @@
 # Revision History for "subdivide"
 
+## Revision 0.1.6
+- Added another loop to _connect_segments that allows the code to
+  search for a way to close an area using the newly created segments
+  before moving on to extend the path.
+-Added the ability to handle a more diverse number of possible
+ trapezoids to the _trapezoid_cut routine.
+
 ## Revision 0.1.5
 - Implemented changes to increase the number of subdivisions the code can go to.
 - Refactored the _create_new_areas subroutine and created
