@@ -94,6 +94,7 @@ class Polygon(object):
                     print("seg j",segments[j])
                     print("new segs",new_segments)
                     print("divisions",divisions)
+                    print("s divisions",sorted(divisions))
                     test_poly = None
                     if len(divisions) == 1 and self._find_area(segments=divisions[0]) > area:
                         if len(divisions[0]) == 3:
@@ -312,8 +313,66 @@ class Polygon(object):
                 new_areas.append(new_path)
                 verts_lists.append(cur_verts)
 
-        return new_areas
+        return self._sort_areas(new_areas)
 
+    @staticmethod
+    def _sort_areas(new_areas):
+        """Sorts the newly created areas so that they are listed from right to left.
+
+        Args:
+            new_areas (list): A list of the tuples containing the new areas.
+
+        Returns:
+            sorted_areas (list): A list of the areas sorted from right to left.
+        """
+
+        n_areas = len(new_areas)
+
+        sorted_areas = []
+
+        def get_centeroid(segments):
+            """Finds the centroid of the area traced by the segemnts.
+
+            Args:
+                segments (list): A list of the segments that trace the area.
+
+            Returns:
+                centroid (list): The centroid in [x,y] coordinates.
+            """
+            arr = np.array([i[0] for i in segments])
+            length = arr.shape[0]
+            sum_x = np.sum(arr[:, 0])
+            sum_y = np.sum(arr[:, 1])
+            return [sum_x/length, sum_y/length]
+        
+        centroids = []
+        for i in range(n_areas):
+            centroids.append([i,get_centeroid(new_areas[i])])
+
+        centroids.sort(key=lambda x:x[1][0])
+
+        done = False
+        while not done:
+            done = True
+            count = 0
+            for i in range(n_areas):
+                count += 1
+                if i <n_areas -1:
+                    if centroids[i][1][0] == centroids[i+1][1][0]:
+                        done = False
+                        temp = [centroids[i],centroids[i+1]]
+                        temp.sort(key=lambda x: x[1][1])
+                        centroids[i] = temp[0]
+                        centroids[i+1] = temp[1]
+
+            if count > 10 and not done:
+                raise RuntimeError("Couldn't sort the new areas.")
+
+        for i in range(n_areas):
+            sorted_areas.append(new_areas[centroids[i][0]])            
+
+        return sorted_areas[::-1]
+        
     def _connect_segments(self,all_segments,new_segments,new_verts,new_path,cur_seg):
         """Connects the segments to form the correct paths formed by the new
         and old segments.
@@ -506,6 +565,7 @@ class Polygon(object):
         else:
             target = total_area - self._find_area(rest_of_poly)
 
+        print("target",target)
         o_verts = [i[0] for i in orig_segments]
         count = 0
         in_orig = []
@@ -559,6 +619,7 @@ class Polygon(object):
                         in_orig.append(i)
                         break
                 if len(in_orig) ==2:
+                    # if segments[in_orig[0][1]]
                     break
                     
             if len(in_orig) == 2:
@@ -691,7 +752,10 @@ class Polygon(object):
             if order == 'standard':
                 cur_area = self._find_area(segments=self._find_segments(verts=[a,b,new_c,new_d]))
             else:
-                cur_area = self._find_area(segments=self._find_segments(verts=[a,new_d,b,new_c]))                
+                cur_area = self._find_area(segments=self._find_segments(verts=[a,new_d,b,new_c]))
+            print("cur_area",cur_area)
+            print("target",target)
+            print("verts",[a,new_d,b,new_c])
             if abs(cur_area-target) < self._eps:
                 correct_h = True
 
@@ -740,6 +804,9 @@ class Polygon(object):
                     poly.append(a)
                 else:
                     poly.append(seg[0])
+        print("f verts",poly)
+        print("final area",self._find_area(segments=self._find_segments(verts=poly)))
+        print("t area",total_area)
         if abs(self._find_area(segments=self._find_segments(verts=poly))-total_area) > self._eps: #pragma: no cover
             raise RuntimeError("Failed to find a cut line for the target area in "
                                "trapeziod_cut.")

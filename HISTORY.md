@@ -1,5 +1,11 @@
 # Revision History for "subdivide"
 
+## Revision 0.1.7
+- Added a new function that sorts the new areas to be in right to left
+  order before they are returned by _create_new_areas. This solves the
+  bug reported in [issue
+  #12](https://github.com/wsmorgan/subdivide/issues/12)
+
 ## Revision 0.1.6
 - Added another loop to _connect_segments that allows the code to
   search for a way to close an area using the newly created segments
